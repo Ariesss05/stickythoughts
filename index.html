@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sticky Thoughts</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+
+        #app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        #header {
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        #board-selector {
+            display: flex;
+            gap: 10px;
+        }
+
+        .board-btn {
+            background-color: #f0f0f0;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .board-btn.active {
+            background-color: #4A90E2;
+            color: white;
+        }
+
+        #board {
+            position: relative;
+            height: 600px;
+            background-color: #f9f9f9;
+            border: 2px dashed #e0e0e0;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .sticky-note {
+            position: absolute;
+            width: 200px;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            cursor: move;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .sticky-note p {
+            margin: 0;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-height: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sticky-note .note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .sticky-note .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .sticky-note .actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #note-form {
+            background-color: white;
+            padding: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.05);
+        }
+
+        #note-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+        }
+
+        .emoji-selector, .color-selector {
+            display: flex;
+            gap: 10px;
+        }
+
+        .emoji-selector button, .color-selector button {
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 24px;
+            transition: transform 0.2s ease;
+        }
+
+        .emoji-selector button:hover, .color-selector button:hover {
+            transform: scale(1.2);
+        }
+
+        .color-selector button {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+        }
+
+        .color-selector button.selected {
+            outline: 3px solid #4A90E2;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="header">
+            <h1>Sticky Thoughts</h1>
+            <div id="board-selector"></div>
+        </div>
+        <div id="board"></div>
+        <form id="note-form">
+            <div class="emoji-selector"></div>
+            <div class="color-selector"></div>
+            <input type="text" id="note-input" placeholder="Type your anonymous thought..." maxlength="200" required>
+            <button type="submit">Post</button>
+        </form>
+    </div>
+
+    <script>
+        // App State
+        const state = {
+            notes: [],
+            currentBoard: 'General',
+            selectedEmoji: '🙈',
+            selectedColor: { bg: 'yellow', hex: '#FFF9C4' }
+        };
+
+        // Predefined Data
+        const BOARDS = ['General', 'Vent Wall', 'Motivation', 'Confessions', 'Random Thoughts'];
+        const EMOJIS = ['🙈', '🦄', '🌈', '🚀', '🍀', '🐼', '🌻', '🍕'];
+        const COLORS = [
+            { bg: 'yellow', hex: '#FFF9C4' },
+            { bg: 'pink', hex: '#FCE4EC' },
+            { bg: 'blue', hex: '#E3F2FD' },
+            { bg: 'green', hex: '#E8F5E9' }
+        ];
+
+        // DOM Elements
+        const boardSelector = document.getElementById('board-selector');
+        const board = document.getElementById('board');
+        const noteForm = document.getElementById('note-form');
+        const noteInput = document.getElementById('note-input');
+        const emojiSelector = document.querySelector('.emoji-selector');
+        const colorSelector = document.querySelector('.color-selector');
+
+        // Initialize Board Selector
+        function initBoardSelector() {
+            boardSelector.innerHTML = BOARDS.map(board => 
+                `<button class="board-btn ${board === state.currentBoard ? 'active' : ''}" 
+                        data-board="${board}">
+                    ${board}
+                </button>`
+            ).join('');
+
+            boardSelector.addEventListener('click', (e) => {
+                if (e.target.classList.contains('board-btn')) {
+                    const newBoard = e.target.dataset.board;
+                    state.currentBoard = newBoard;
+                    updateBoardSelector();
+                    renderNotes();
+                }
+            });
+        }
+
+        // Update Board Selector Active State
+        function updateBoardSelector() {
+            document.querySelectorAll('.board-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.board === state.currentBoard);
+            });
+        }
+
+        // Initialize Emoji Selector
+        function initEmojiSelector() {
+            emojiSelector.innerHTML = EMOJIS.map(emoji => 
+                `<button type="button" data-emoji="${emoji}" 
+                        class="${emoji === state.selectedEmoji ? 'selected' : ''}">
+                    ${emoji}
+                </button>`
+            ).join('');
+
+            emojiSelector.addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    state.selectedEmoji = e.target.dataset.emoji;
+                    initEmojiSelector(); // Rerender to update selected state
+                }
+            });
+        }
+
+        // Initialize Color Selector
+        function initColorSelector() {
+            colorSelector.innerHTML = COLORS.map(color => 
+                `<button type="button" 
+                        data-color="${color.bg}" 
+                        style="background-color: ${color.hex}"
+                        class="${color.bg === state.selectedColor.bg ? 'selected' : ''}">
+                </button>`
+            ).join('');
+
+            colorSelector.addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    const selectedColor = COLORS.find(c => c.bg === e.target.dataset.color);
+                    state.selectedColor = selectedColor;
+                    initColorSelector(); // Rerender to update selected state
+                }
+            });
+        }
+
+        // Create a New Note
+        function createNote(text, emoji, color) {
+            const note = {
+                id: Date.now(),
+                text,
+                emoji,
+                color,
+                board: state.currentBoard,
+                likes: 0,
+                x: Math.random() * (board.clientWidth - 200),
+                y: Math.random() * (board.clientHeight - 200)
+            };
+            state.notes.push(note);
+            renderNotes();
+        }
+
+        // Render Notes
+        function renderNotes() {
+            board.innerHTML = state.notes
+                .filter(note => note.board === state.currentBoard)
+                .map(note => `
+                    <div class="sticky-note" 
+                         data-id="${note.id}" 
+                         style="left: ${note.x}px; top: ${note.y}px; background-color: ${note.color.hex}">
+                        <div class="note-header">
+                            <span class="emoji">${note.emoji}</span>
+                            <div class="actions">
+                                <button class="like-btn">❤️ ${note.likes}</button>
+                                <button class="delete-btn">🗑️</button>
+                            </div>
+                        </div>
+                        <p>${note.text}</p>
+                    </div>
+                `).join('');
+
+            // Add event listeners for like and delete
+            board.querySelectorAll('.like-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const noteEl = e.target.closest('.sticky-note');
+                    const noteId = parseInt(noteEl.dataset.id);
+                    const note = state.notes.find(n => n.id === noteId);
+                    note.likes++;
+                    renderNotes();
+                });
+            });
+
+            board.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const noteEl = e.target.closest('.sticky-note');
+                    const noteId = parseInt(noteEl.dataset.id);
+                    state.notes = state.notes.filter(n => n.id !== noteId);
+                    renderNotes();
+                });
+            });
+
+            // Make notes draggable
+            board.querySelectorAll('.sticky-note').forEach(noteEl => {
+                noteEl.addEventListener('mousedown', startDragging);
+            });
+        }
+
+        // Dragging functionality
+        let draggedNote = null;
+        function startDragging(e) {
+            draggedNote = e.target.closest('.sticky-note');
+            const noteId = parseInt(draggedNote.dataset.id);
+            const note = state.notes.find(n => n.id === noteId);
+
+            const offsetX = e.clientX - draggedNote.offsetLeft;
+            const offsetY = e.clientY - draggedNote.offsetTop;
+
+            function moveNote(e) {
+                const boardRect = board.getBoundingClientRect();
+                note.x = e.clientX - boardRect.left - offsetX;
+                note.y = e.clientY - boardRect.top - offsetY;
+                draggedNote.style.left = `${note.x}px`;
+                draggedNote.style.top = `${note.y}px`;
+            }
+
+            function stopDragging() {
+                document.removeEventListener('mousemove', moveNote);
+                document.removeEventListener('mouseup', stopDragging);
+            }
+
+            document.addEventListener('mousemove', moveNote);
+            document.addEventListener('mouseup', stopDragging);
+        }
+
+        // Form Submission
+        noteForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            createNote(
+                noteInput.value, 
+                state.selectedEmoji, 
+                state.selectedColor
+            );
+            noteInput.value = ''; // Clear input
+        });
+
+        // Initialize App
+        function initApp() {
+            initBoardSelector();
+            initEmojiSelector();
+            initColorSelector();
+        }
+
+        // Start the app
+        initApp();
+    </script>
+</body>
+</html>
+Could not connect to the reCAPTCHA service. Please check your internet connection and reload to get a reCAPTCHA challenge.
